@@ -1,0 +1,31 @@
+{
+  "name": "aws-bedrock-app",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @bedrock-app/api && npm run build --workspace @bedrock-app/mock-api && npm run build --workspace @bedrock-app/web",
+    "typecheck": "npm run typecheck --workspace @bedrock-app/api && npm run typecheck --workspace @bedrock-app/mock-api && npm run typecheck --workspace @bedrock-app/web",
+    "lint": "eslint apps --max-warnings 0",
+    "test": "npm run test --workspace @bedrock-app/api",
+    "package:api": "node ./scripts/package-api.mjs",
+    "bootstrap:local": "node ./scripts/bootstrap-local.mjs",
+    "check:prereqs": "node ./scripts/check-prereqs.mjs",
+    "dev:web": "npm run dev --workspace @bedrock-app/web",
+    "dev:mock-api": "npm run dev --workspace @bedrock-app/mock-api",
+    "dev:local": "docker compose -f docker-compose.local.yml up --build",
+    "dev:local:down": "docker compose -f docker-compose.local.yml down"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@typescript-eslint/eslint-plugin": "^8.30.0",
+    "@typescript-eslint/parser": "^8.30.0",
+    "eslint": "^9.24.0",
+    "globals": "^16.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

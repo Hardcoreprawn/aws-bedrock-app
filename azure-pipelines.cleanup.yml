@@ -1,0 +1,36 @@
+schedules:
+  - cron: '0 2 * * *'
+    displayName: Nightly cleanup
+    branches:
+      include:
+        - main
+    always: true
+
+trigger: none
+pr: none
+
+stages:
+  - stage: CleanupPreviewIdentities
+    displayName: Cleanup preview identities
+    jobs:
+      - job: CleanupEntraApps
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+          - task: AzureCLI@2
+            displayName: Remove expired preview identities
+            inputs:
+              azureSubscription: $(DEV_AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                GRAPH_TOKEN=$(az account get-access-token --resource-type ms-graph --query accessToken -o tsv)
+                export GRAPH_TOKEN
+                export ENTRA_APP_PREFIX=test_
+                export MAX_AGE_HOURS=24
+                node ./scripts/entra/cleanup-enterprise-apps.mjs

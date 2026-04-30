@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.turbo/
+.terraform/
+.terraform.lock.hcl
+coverage/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+*.zip
+apps/api/.aws-sam/
+apps/web/.vite/
+tmp/

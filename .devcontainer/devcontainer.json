@@ -1,0 +1,62 @@
+{
+  "name": "aws-bedrock-app (Docker Desktop + WSL)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "node",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers/features/aws-cli:1": {},
+    "ghcr.io/devcontainers/features/terraform:1": {
+      "version": "1.8.5"
+    },
+    "ghcr.io/devcontainers/features/azure-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "vitest.explorer",
+        "esbenp.prettier-vscode",
+        "hashicorp.terraform",
+        "amazonwebservices.aws-toolkit-vscode",
+        "ms-azure-devops.azure-pipelines",
+        "ms-vscode.powershell",
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "files.eol": "\n",
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "aws.telemetry": false,
+        "aws.amazonQ.enabled": false,
+        "aws.codeWhisperer.enabled": false,
+        "aws.explorer.cloudFormation.enabled": false,
+        "aws.suppressPrompts": true
+      }
+    }
+  },
+  "forwardPorts": [
+    3000,
+    5173
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "Mock API",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Vite dev server",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} && bash .devcontainer/post-start.sh",
+  "containerEnv": {
+    "USE_MOCK_BEDROCK": "true",
+    "AWS_REGION": "eu-west-2",
+    "AWS_TOOLKIT_TELEMETRY": "false"
+  }
+}

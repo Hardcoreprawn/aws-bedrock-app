@@ -1,0 +1,23 @@
+{
+  "name": "@bedrock-app/mock-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc --noEmit",
+    "lint": "eslint src --max-warnings 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.13.11",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

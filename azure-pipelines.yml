@@ -1,0 +1,273 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - "*"
+
+variables:
+  appName: bedrock-review
+  awsRegion: eu-west-2
+  previewAzureServiceConnection: $(DEV_AZURE_SERVICE_CONNECTION)
+  productionAzureServiceConnection: $(PROD_AZURE_SERVICE_CONNECTION)
+  previewRedirectUri: https://preview.example.com/callback
+  productionRedirectUri: https://app.example.com/callback
+  productionEnterpriseAppName: $(appName)
+  previewReaderGroupObjectIds: []
+  previewSubmitterGroupObjectIds: []
+  previewAdminGroupObjectIds: []
+  productionReaderGroupObjectIds: []
+  productionSubmitterGroupObjectIds: []
+  productionAdminGroupObjectIds: []
+  # Set these as pipeline variables or a variable group linked to a Key Vault.
+  # AWS_DEPLOY_ROLE_ARN: arn:aws:iam::<account-id>:role/bedrock-review-shared-pipeline-deploy
+  # TF_STATE_BUCKET:     bedrock-review-shared-tfstate
+  # TF_LOCK_TABLE:       bedrock-review-shared-tflock
+
+stages:
+  - stage: Validate
+    displayName: Validate
+    jobs:
+      - job: ValidateBuild
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: "20.x"
+
+          - script: npm ci
+            displayName: Install dependencies
+
+          - script: npm run typecheck
+            displayName: Typecheck
+
+          - script: npm run lint
+            displayName: Lint
+
+          - script: npm run test
+            displayName: Unit tests
+
+          - script: |
+              set -euo pipefail
+              npm run build --workspace @bedrock-app/api
+              VITE_API_BASE_URL=http://localhost:3000 npm run build --workspace @bedrock-app/web
+            displayName: Build apps
+
+      - job: SecurityScan
+        displayName: Microsoft Defender for DevOps
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            inputs:
+              versionSpec: "20.x"
+
+          - script: npm ci
+            displayName: Install dependencies
+
+          - task: PowerShell@2
+            displayName: Run Defender for DevOps scan (best effort)
+            inputs:
+              targetType: inline
+              script: |
+                if (Get-Command msdo -ErrorAction SilentlyContinue) {
+                  msdo run --categories IaC,secrets,dependencies
+                } else {
+                  Write-Host "msdo CLI is not available on this agent. Skipping Defender scan."
+                }
+
+  - stage: Preview
+    displayName: PR Preview
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'Manual'),
+      eq(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - deployment: PreviewDeployment
+        environment: preview-managed
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: Assume AWS deploy role via OIDC (preview)
+                  inputs:
+                    azureSubscription: $(previewAzureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      OIDC_TOKEN=$(curl -sH "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+                        "$SYSTEM_OIDCREQUESTURI?api-version=7.1&audience=api://AzureADTokenExchange" \
+                        | jq -r '.value')
+                      if [[ -z "$OIDC_TOKEN" || "$OIDC_TOKEN" == "null" ]]; then
+                        echo "Failed to obtain OIDC token from Azure DevOps." >&2
+                        exit 1
+                      fi
+                      AWS_CREDS=$(aws sts assume-role-with-web-identity \
+                        --role-arn "$(AWS_DEPLOY_ROLE_ARN)" \
+                        --role-session-name "ado-preview-$(Build.BuildId)" \
+                        --web-identity-token "$OIDC_TOKEN" \
+                        --query 'Credentials' --output json)
+                      if [[ -z "$AWS_CREDS" || "$AWS_CREDS" == "null" ]]; then
+                        echo "Failed to assume AWS role with web identity." >&2
+                        exit 1
+                      fi
+                      echo "##vso[task.setvariable variable=AWS_ACCESS_KEY_ID]$(echo $AWS_CREDS | jq -r .AccessKeyId)"
+                      echo "##vso[task.setvariable variable=AWS_SECRET_ACCESS_KEY;issecret=true]$(echo $AWS_CREDS | jq -r .SecretAccessKey)"
+                      echo "##vso[task.setvariable variable=AWS_SESSION_TOKEN;issecret=true]$(echo $AWS_CREDS | jq -r .SessionToken)"
+                  env:
+                    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+                - task: AzureCLI@2
+                  displayName: Provision PR Entra identity with Terraform
+                  inputs:
+                    azureSubscription: $(previewAzureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      TENANT_ID=$(az account show --query tenantId -o tsv)
+                      terraform -chdir=infra/terraform/entra init \
+                        -backend-config="bucket=$(TF_STATE_BUCKET)" \
+                        -backend-config="key=$(appName)/entra/pr$(System.PullRequest.PullRequestId)/terraform.tfstate" \
+                        -backend-config="dynamodb_table=$(TF_LOCK_TABLE)" \
+                        -backend-config="region=$(awsRegion)"
+                      terraform -chdir=infra/terraform/entra apply -auto-approve \
+                        -var tenant_id=$TENANT_ID \
+                        -var display_name=test_$(appName)_$(System.PullRequest.PullRequestId) \
+                        -var 'redirect_uris=["$(previewRedirectUri)"]' \
+                        -var 'spa_redirect_uris=["$(previewRedirectUri)"]' \
+                        -var access_tier=preview \
+                        -var app_role_assignment_required=false \
+                        -var 'reader_group_object_ids=$(previewReaderGroupObjectIds)' \
+                        -var 'submitter_group_object_ids=$(previewSubmitterGroupObjectIds)' \
+                        -var 'admin_group_object_ids=$(previewAdminGroupObjectIds)'
+
+                - script: |
+                    set -euo pipefail
+                    npm ci
+                    npm run build --workspace @bedrock-app/api
+                    ENTRA_TENANT_ID=$(terraform -chdir=infra/terraform/entra output -raw tenant_id)
+                    ENTRA_CLIENT_ID=$(terraform -chdir=infra/terraform/entra output -raw client_id)
+                    ENTRA_AUTHORITY=$(terraform -chdir=infra/terraform/entra output -raw authority)
+                    ENTRA_API_SCOPE=$(terraform -chdir=infra/terraform/entra output -raw api_scope)
+                    terraform -chdir=infra/terraform init \
+                      -backend-config="bucket=$(TF_STATE_BUCKET)" \
+                      -backend-config="key=$(appName)/pr$(System.PullRequest.PullRequestId)/terraform.tfstate" \
+                      -backend-config="dynamodb_table=$(TF_LOCK_TABLE)" \
+                      -backend-config="region=$(awsRegion)"
+                    terraform -chdir=infra/terraform apply -auto-approve -var app_name=$(appName) -var environment=pr$(System.PullRequest.PullRequestId) -var aws_region=$(awsRegion) -var auth_enabled=true -var entra_tenant_id=$ENTRA_TENANT_ID -var entra_api_audience=$ENTRA_CLIENT_ID
+                    API_BASE_URL=$(terraform -chdir=infra/terraform output -raw api_base_url)
+                    FRONTEND_BUCKET=$(terraform -chdir=infra/terraform output -raw frontend_bucket_name)
+                    DISTRIBUTION_ID=$(terraform -chdir=infra/terraform output -raw cloudfront_distribution_id)
+                    VITE_API_BASE_URL=$API_BASE_URL VITE_ENTRA_CLIENT_ID=$ENTRA_CLIENT_ID VITE_ENTRA_TENANT_ID=$ENTRA_TENANT_ID VITE_ENTRA_AUTHORITY=$ENTRA_AUTHORITY VITE_ENTRA_API_SCOPE=$ENTRA_API_SCOPE npm run build --workspace @bedrock-app/web
+                    aws s3 sync apps/web/dist s3://$FRONTEND_BUCKET --delete
+                    aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths '/*'
+                  env:
+                    AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+                    AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+                    AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
+                  displayName: Deploy preview infrastructure and frontend
+
+  - stage: Production
+    displayName: Production
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: ProductionDeployment
+        environment: production-managed
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: Assume AWS deploy role via OIDC (production)
+                  inputs:
+                    azureSubscription: $(productionAzureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      OIDC_TOKEN=$(curl -sH "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+                        "$SYSTEM_OIDCREQUESTURI?api-version=7.1&audience=api://AzureADTokenExchange" \
+                        | jq -r '.value')
+                      if [[ -z "$OIDC_TOKEN" || "$OIDC_TOKEN" == "null" ]]; then
+                        echo "Failed to obtain OIDC token from Azure DevOps." >&2
+                        exit 1
+                      fi
+                      AWS_CREDS=$(aws sts assume-role-with-web-identity \
+                        --role-arn "$(AWS_DEPLOY_ROLE_ARN)" \
+                        --role-session-name "ado-production-$(Build.BuildId)" \
+                        --web-identity-token "$OIDC_TOKEN" \
+                        --query 'Credentials' --output json)
+                      if [[ -z "$AWS_CREDS" || "$AWS_CREDS" == "null" ]]; then
+                        echo "Failed to assume AWS role with web identity." >&2
+                        exit 1
+                      fi
+                      echo "##vso[task.setvariable variable=AWS_ACCESS_KEY_ID]$(echo $AWS_CREDS | jq -r .AccessKeyId)"
+                      echo "##vso[task.setvariable variable=AWS_SECRET_ACCESS_KEY;issecret=true]$(echo $AWS_CREDS | jq -r .SecretAccessKey)"
+                      echo "##vso[task.setvariable variable=AWS_SESSION_TOKEN;issecret=true]$(echo $AWS_CREDS | jq -r .SessionToken)"
+                  env:
+                    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+                - task: AzureCLI@2
+                  displayName: Provision production Entra identity with Terraform
+                  inputs:
+                    azureSubscription: $(productionAzureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      TENANT_ID=$(az account show --query tenantId -o tsv)
+                      terraform -chdir=infra/terraform/entra init \
+                        -backend-config="bucket=$(TF_STATE_BUCKET)" \
+                        -backend-config="key=$(appName)/entra/production/terraform.tfstate" \
+                        -backend-config="dynamodb_table=$(TF_LOCK_TABLE)" \
+                        -backend-config="region=$(awsRegion)"
+                      terraform -chdir=infra/terraform/entra apply -auto-approve \
+                        -var tenant_id=$TENANT_ID \
+                        -var display_name=$(productionEnterpriseAppName) \
+                        -var 'redirect_uris=["$(productionRedirectUri)"]' \
+                        -var 'spa_redirect_uris=["$(productionRedirectUri)"]' \
+                        -var access_tier=production \
+                        -var app_role_assignment_required=true \
+                        -var 'reader_group_object_ids=$(productionReaderGroupObjectIds)' \
+                        -var 'submitter_group_object_ids=$(productionSubmitterGroupObjectIds)' \
+                        -var 'admin_group_object_ids=$(productionAdminGroupObjectIds)'
+                  env:
+                    AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+                    AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+                    AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
+
+                - script: |
+                    set -euo pipefail
+                    npm ci
+                    npm run build --workspace @bedrock-app/api
+                    ENTRA_TENANT_ID=$(terraform -chdir=infra/terraform/entra output -raw tenant_id)
+                    ENTRA_CLIENT_ID=$(terraform -chdir=infra/terraform/entra output -raw client_id)
+                    ENTRA_AUTHORITY=$(terraform -chdir=infra/terraform/entra output -raw authority)
+                    ENTRA_API_SCOPE=$(terraform -chdir=infra/terraform/entra output -raw api_scope)
+                    terraform -chdir=infra/terraform init \
+                      -backend-config="bucket=$(TF_STATE_BUCKET)" \
+                      -backend-config="key=$(appName)/production/terraform.tfstate" \
+                      -backend-config="dynamodb_table=$(TF_LOCK_TABLE)" \
+                      -backend-config="region=$(awsRegion)"
+                    terraform -chdir=infra/terraform plan -out=tfplan -var app_name=$(appName) -var environment=production -var aws_region=$(awsRegion) -var auth_enabled=true -var entra_tenant_id=$ENTRA_TENANT_ID -var entra_api_audience=$ENTRA_CLIENT_ID
+                    terraform -chdir=infra/terraform apply -auto-approve tfplan
+                    API_BASE_URL=$(terraform -chdir=infra/terraform output -raw api_base_url)
+                    FRONTEND_BUCKET=$(terraform -chdir=infra/terraform output -raw frontend_bucket_name)
+                    DISTRIBUTION_ID=$(terraform -chdir=infra/terraform output -raw cloudfront_distribution_id)
+                    VITE_API_BASE_URL=$API_BASE_URL VITE_ENTRA_CLIENT_ID=$ENTRA_CLIENT_ID VITE_ENTRA_TENANT_ID=$ENTRA_TENANT_ID VITE_ENTRA_AUTHORITY=$ENTRA_AUTHORITY VITE_ENTRA_API_SCOPE=$ENTRA_API_SCOPE npm run build --workspace @bedrock-app/web
+                    aws s3 sync apps/web/dist s3://$FRONTEND_BUCKET --delete
+                    aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths '/*'
+                  env:
+                    AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+                    AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+                    AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
+                  displayName: Deploy production infrastructure and frontend

@@ -1,0 +1,32 @@
+services:
+  mock-api:
+    image: node:20-bookworm
+    working_dir: /workspace
+    command: bash -lc "npm install && npm run dev --workspace @bedrock-app/mock-api"
+    environment:
+      MOCK_API_PORT: ${MOCK_API_PORT:-3000}
+      MOCK_REVIEW_DELAY_MS: ${MOCK_REVIEW_DELAY_MS:-1500}
+    ports:
+      - "${MOCK_API_PORT:-3000}:3000"
+    volumes:
+      - .:/workspace
+      - mock_api_node_modules:/workspace/node_modules
+
+  web:
+    image: node:20-bookworm
+    working_dir: /workspace
+    command: bash -lc "npm install && npm run dev --workspace @bedrock-app/web"
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000}
+      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-false}
+    depends_on:
+      - mock-api
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    volumes:
+      - .:/workspace
+      - web_node_modules:/workspace/node_modules
+
+volumes:
+  mock_api_node_modules:
+  web_node_modules:

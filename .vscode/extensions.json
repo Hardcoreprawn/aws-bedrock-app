@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "vitest.explorer",
+    "hashicorp.terraform",
+    "amazonwebservices.aws-toolkit-vscode",
+    "ms-azure-devops.azure-pipelines",
+    "ms-vscode.powershell",
+    "ms-azuretools.vscode-docker",
+    "redhat.vscode-yaml"
+  ]
+}

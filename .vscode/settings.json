@@ -1,0 +1,7 @@
+{
+  "aws.telemetry": false,
+  "aws.amazonQ.enabled": false,
+  "aws.codeWhisperer.enabled": false,
+  "aws.explorer.cloudFormation.enabled": false,
+  "aws.suppressPrompts": true
+}

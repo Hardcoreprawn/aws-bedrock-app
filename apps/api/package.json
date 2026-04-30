@@ -1,0 +1,29 @@
+{
+  "name": "@bedrock-app/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "node ../../scripts/build-api.mjs",
+    "lint": "eslint src --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.771.0",
+    "@aws-sdk/client-dynamodb": "^3.771.0",
+    "@aws-sdk/client-s3": "^3.771.0",
+    "@aws-sdk/client-sfn": "^3.771.0",
+    "@aws-sdk/lib-dynamodb": "^3.771.0",
+    "@aws-sdk/s3-request-presigner": "^3.771.0",
+    "@types/aws-lambda": "^8.10.147",
+    "jose": "^5.9.6",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.11",
+    "esbuild": "^0.25.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.2"
+  }
+}
