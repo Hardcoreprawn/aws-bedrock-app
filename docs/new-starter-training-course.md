@@ -18,6 +18,8 @@ Each module has:
 
 Do the modules roughly in order. Later modules build on earlier ones, especially around auth and the AI pipeline.
 
+> **Before Modules 4 and 5** complete the AWS Skill Builder courses listed in those modules' external resources sections. They are the steepest learning curves for AWS newcomers and the free courses are short enough to fit within a normal working week.
+
 ---
 
 ## Module 1 — Orientation: What is this system and why does it exist?
@@ -51,6 +53,11 @@ Understand the purpose of the application, where it sits architecturally, and wh
 - Why are prompts kept outside application code? What governance benefit does that create?
 - What is the consequence of the serverless-first choice for long-running document jobs?
 - If someone wanted to add a new specialist agent, what two things would they need to create?
+
+### External resources
+
+- **AWS Well-Architected Framework** — [aws.amazon.com/architecture/well-architected](https://aws.amazon.com/architecture/well-architected/) (free, official AWS). Read the serverless lens. Directly underpins the decisions recorded in the ADRs.
+- **"Cloud Computing Concepts" — University of Illinois via Coursera** — academic grounding in distributed systems concepts behind Lambda, Step Functions, and DynamoDB.
 
 ### Optional extensions
 
@@ -88,6 +95,11 @@ Have the full local preview stack running on your machine. Understand what each 
 - What happens in the UI if `VITE_ENTRA_*` variables are left blank?
 - Where is the simulated review delay controlled? Which environment variable sets it?
 - What is the key difference between local mock mode and a real deployed environment, from a security standpoint?
+
+### External resources
+
+- **Docker official "Get Started" guide** — [docs.docker.com/get-started](https://docs.docker.com/get-started/) (free). Covers images, containers, volumes, and Compose — the concepts behind the local preview stack.
+- **Docker Compose documentation** — [docs.docker.com/compose](https://docs.docker.com/compose/) (free). Reference for `docker-compose.local.yml`.
 
 ### Optional extensions
 
@@ -128,6 +140,12 @@ Understand how the React app is structured, how it communicates with the API, an
 - Why does the frontend poll rather than use a websocket or server-sent events?
 - What would break in production if the `VITE_API_BASE_URL` variable was pointed at the wrong URL at build time?
 
+### External resources
+
+- **React.dev official tutorial** — [react.dev/learn](https://react.dev/learn) (free, official). The canonical React learning path. Covers hooks, effects, and state in exactly the pattern used in `App.tsx`.
+- **Total TypeScript — Matt Pocock** — [totaltypescript.com](https://www.totaltypescript.com/) (free beginner tutorials, paid advanced). Widely regarded as the best TypeScript resource available. Covers generics, type inference, and narrowing — all present in the API code.
+- **"React - The Complete Guide" — Maximilian Schwarzmüller (Udemy)** — one of the most consistently well-reviewed React courses. Covers Vite-based setups.
+
 ### Optional extensions
 
 - Run `npm run build --workspace @bedrock-app/web` and inspect the contents of the generated `dist/` folder. Note that the HTML file is tiny and all logic is in the bundled JS.
@@ -163,7 +181,7 @@ Understand how the Lambda-based API is structured, how requests are routed, how 
 3. Open `reviews-get.ts`. Find the ownership check. What role allows a user to read any review, regardless of who submitted it?
 4. Open `review-store.ts`. Find the function that saves a completed review. Note the DynamoDB attribute names used.
 5. Open `config.ts`. Find where `USE_MOCK_BEDROCK` and `AUTH_ENABLED` are read. Note how the config module validates required values.
-6. Open [apps/api/src/handlers/__tests__/safety.test.ts](../apps/api/src/handlers/__tests__/safety.test.ts) and [apps/api/src/handlers/__tests__/responses.test.ts](../apps/api/src/handlers/__tests__/responses.test.ts). Run `npm test` and confirm they pass.
+6. Open [apps/api/src/handlers/**tests**/safety.test.ts](../apps/api/src/handlers/__tests__/safety.test.ts) and [apps/api/src/handlers/**tests**/responses.test.ts](../apps/api/src/handlers/__tests__/responses.test.ts). Run `npm test` and confirm they pass.
 
 ### Check your understanding
 
@@ -172,6 +190,12 @@ Understand how the Lambda-based API is structured, how requests are routed, how 
 - What DynamoDB key is used to look up a review record?
 - If a non-admin user tries to read a review submitted by someone else, what response do they receive?
 - What is the purpose of `config.ts`? What would happen without the validation it provides?
+
+### External resources
+
+- **AWS Skill Builder — "AWS Lambda Foundations"** — [explore.skillbuilder.aws](https://explore.skillbuilder.aws/) (free, ~4 hours). Official course covering cold starts, execution model, event sources, and IAM execution roles. **Complete this before starting Module 4.**
+- **AWS Skill Builder — "Amazon DynamoDB — Getting Started"** — [explore.skillbuilder.aws](https://explore.skillbuilder.aws/) (free). Covers partition keys, single-table design, and capacity modes — directly applicable to how `review-store.ts` is structured.
+- **"AWS Certified Developer — Associate" — Stephane Maarek (Udemy) or Neal Davis (Digital Cloud Training)** — both are highly rated and cover Lambda, API Gateway, and DynamoDB in depth. The cert is not the goal; the structured coverage is.
 
 ### Optional extensions
 
@@ -218,6 +242,12 @@ Understand how multi-agent AI review works end-to-end: how the workflow is orche
 - Why does each agent load both `system.md` and its own specialist prompt rather than just its specialist prompt?
 - What does `USE_MOCK_BEDROCK=true` change about runtime behaviour? Where is the mock branch?
 
+### External resources
+
+- **"ChatGPT Prompt Engineering for Developers" — DeepLearning.AI + OpenAI** — [learn.deeplearning.ai](https://learn.deeplearning.ai/) (free, ~2 hours). By Andrew Ng and Isa Fulford. Covers system prompts, task decomposition, and output formatting — concepts directly reflected in how the specialist agents are designed. **Complete this before starting Module 5.**
+- **"Building Systems with the ChatGPT API" — DeepLearning.AI** — [learn.deeplearning.ai](https://learn.deeplearning.ai/) (free). Covers multi-step AI pipelines and chaining — maps well to the worker → synthesizer Step Functions pattern.
+- **AWS Skill Builder — "Amazon Bedrock Getting Started"** — [explore.skillbuilder.aws](https://explore.skillbuilder.aws/) (free). Official introduction to Bedrock's model invocation API, guardrails, and the Converse API. Bridges the gap between the DeepLearning.AI concepts and the AWS-specific implementation in `bedrock.ts`.
+
 ### Optional extensions
 
 - Read [docs/hardening-roadmap.md](hardening-roadmap.md), specifically the AI safety and human control section. Map each recommended control back to the code you have just read.
@@ -259,6 +289,11 @@ Read and navigate the Terraform configuration. Understand which AWS resources ba
 - How does the IAM role created in bootstrap relate to the OIDC provider? How does Azure DevOps authenticate to AWS?
 - Why are all S3 buckets created with `block_public_acls = true`?
 - What would happen if `auth_enabled` was set to `false` in a production deployment?
+
+### External resources
+
+- **HashiCorp Developer Tutorials — "Get Started with Terraform on AWS"** — [developer.hashicorp.com/terraform/tutorials/aws-get-started](https://developer.hashicorp.com/terraform/tutorials/aws-get-started) (free, official). The canonical Terraform learning path. Covers providers, state, modules, and plan/apply workflow.
+- **"Terraform on AWS" — Zeal Vora (Udemy)** — well-reviewed course for deeper AWS-specific Terraform patterns.
 
 ### Optional extensions
 
@@ -304,6 +339,12 @@ Understand the pipeline structure, the identity lifecycle for preview and produc
 - What pipeline variables must be set before the first real deployment? (See [pipelines-and-identities.md](pipelines-and-identities.md).)
 - Why is there a separate cleanup pipeline rather than deleting preview identities at the end of the deployment pipeline?
 
+### External resources
+
+- **Microsoft Learn — "AZ-400: Designing and Implementing Microsoft DevOps Solutions"** — [learn.microsoft.com](https://learn.microsoft.com/) (free, official). Full learning path covering pipelines, environments, approvals, and service connections.
+- **Microsoft Learn — "Microsoft Entra ID Fundamentals"** — [learn.microsoft.com](https://learn.microsoft.com/) (free, official). Covers app registrations, service principals, OIDC, and delegated vs application permissions — the exact concepts behind how Entra identities are managed in this repo.
+- **"OIDC for Developers" — Okta Developer YouTube** — short video series. OIDC is the foundation of both the Entra JWT validation in the API and the Azure DevOps → AWS federation. Worth watching if the concepts feel unclear.
+
 ### Optional extensions
 
 - Read [docs/runbooks/incident-triage.md](runbooks/incident-triage.md). Consider what information you would need to diagnose a failed review in production.
@@ -326,7 +367,7 @@ Understand where the current security baseline sits, what is not yet hardened, a
 2. [docs/hardening-roadmap.md](hardening-roadmap.md) — the full six-layer hardening plan.
 3. [apps/api/src/lib/auth.ts](../apps/api/src/lib/auth.ts) — the auth enforcement code you already read in Module 4, now through a security lens.
 4. [apps/api/src/lib/safety.ts](../apps/api/src/lib/safety.ts) — the safety screening code you read in Module 5.
-5. [apps/api/src/handlers/__tests__/safety.test.ts](../apps/api/src/handlers/__tests__/safety.test.ts) — safety test coverage.
+5. [apps/api/src/handlers/**tests**/safety.test.ts](../apps/api/src/handlers/__tests__/safety.test.ts) — safety test coverage.
 
 ### Hands-on tasks
 
@@ -344,9 +385,15 @@ Understand where the current security baseline sits, what is not yet hardened, a
 - If a document contained PII such as a national insurance number, what would happen today? What should happen in a hardened deployment?
 - Why does the roadmap recommend human approval for high-risk or policy-sensitive outputs?
 
+### External resources
+
+- **OWASP Top 10 for LLM Applications** — [owasp.org/www-project-top-10-for-large-language-model-applications](https://owasp.org/www-project-top-10-for-large-language-model-applications/) (free). Covers prompt injection, training data poisoning, and insecure output handling — all relevant to how Bedrock is used here. See the optional extension below.
+- **AWS Skill Builder — "AWS Security Fundamentals"** — [explore.skillbuilder.aws](https://explore.skillbuilder.aws/) (free). Covers IAM least privilege, KMS, CloudTrail, and S3 bucket policy patterns — maps directly to the gaps identified in the hardening roadmap.
+- **"Security Engineering" — Ross Anderson** — [cl.cam.ac.uk/~rja14/book.html](https://www.cl.cam.ac.uk/~rja14/book.html) (free online). The standard academic textbook on security engineering. Chapters on access control and authentication provide the theoretical grounding behind the auth patterns in `auth.ts`.
+
 ### Optional extensions
 
-- Read the OWASP Top 10 for LLM Applications (external reading). Map each risk back to something in this codebase — either a control that addresses it or a gap.
+- Read the OWASP Top 10 for LLM Applications. Map each risk back to something in this codebase — either a control that addresses it or a gap.
 - Read [docs/hardening-roadmap.md](hardening-roadmap.md) section 5 (AI safety). Sketch a simple design for how PII detection before model invocation could be added to `review-worker.ts`.
 
 ---
@@ -354,7 +401,7 @@ Understand where the current security baseline sits, what is not yet hardened, a
 ## Capstone exercise — end-to-end trace
 
 **Estimated time:** 1 hour  
-**Suggested week:** Week 12**
+**Suggested week:** Week 12\*\*
 
 ### Goal
 
@@ -381,26 +428,26 @@ Write this as a numbered list or a diagram. Then check it against the code.
 
 ## Reference — key files at a glance
 
-| Concern | File |
-|---|---|
-| App entry point (web) | [apps/web/src/App.tsx](../apps/web/src/App.tsx) |
-| API calls from browser | [apps/web/src/api.ts](../apps/web/src/api.ts) |
-| Entra auth (web) | [apps/web/src/auth.ts](../apps/web/src/auth.ts) |
-| Lambda router | [apps/api/src/handlers/router.ts](../apps/api/src/handlers/router.ts) |
-| Upload handler | [apps/api/src/handlers/uploads.ts](../apps/api/src/handlers/uploads.ts) |
-| Review create handler | [apps/api/src/handlers/reviews-create.ts](../apps/api/src/handlers/reviews-create.ts) |
-| Review get handler | [apps/api/src/handlers/reviews-get.ts](../apps/api/src/handlers/reviews-get.ts) |
-| Auth enforcement | [apps/api/src/lib/auth.ts](../apps/api/src/lib/auth.ts) |
-| Bedrock wrapper | [apps/api/src/lib/bedrock.ts](../apps/api/src/lib/bedrock.ts) |
-| Agent registry | [apps/api/src/lib/agents.ts](../apps/api/src/lib/agents.ts) |
-| Safety screen | [apps/api/src/lib/safety.ts](../apps/api/src/lib/safety.ts) |
-| DynamoDB helpers | [apps/api/src/lib/review-store.ts](../apps/api/src/lib/review-store.ts) |
-| Review worker Lambda | [apps/api/src/handlers/review-worker.ts](../apps/api/src/handlers/review-worker.ts) |
-| Synthesis Lambda | [apps/api/src/handlers/review-synthesizer.ts](../apps/api/src/handlers/review-synthesizer.ts) |
-| Core Terraform | [infra/terraform/main.tf](../infra/terraform/main.tf) |
-| Bootstrap Terraform | [infra/terraform/bootstrap/main.tf](../infra/terraform/bootstrap/main.tf) |
-| Main pipeline | [azure-pipelines.yml](../azure-pipelines.yml) |
-| Architecture overview | [docs/architecture.md](architecture.md) |
-| Hardening roadmap | [docs/hardening-roadmap.md](hardening-roadmap.md) |
-| Prompt authoring guide | [docs/prompt-authoring.md](prompt-authoring.md) |
-| Pipelines and identities | [docs/pipelines-and-identities.md](pipelines-and-identities.md) |
+| Concern                  | File                                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| App entry point (web)    | [apps/web/src/App.tsx](../apps/web/src/App.tsx)                                               |
+| API calls from browser   | [apps/web/src/api.ts](../apps/web/src/api.ts)                                                 |
+| Entra auth (web)         | [apps/web/src/auth.ts](../apps/web/src/auth.ts)                                               |
+| Lambda router            | [apps/api/src/handlers/router.ts](../apps/api/src/handlers/router.ts)                         |
+| Upload handler           | [apps/api/src/handlers/uploads.ts](../apps/api/src/handlers/uploads.ts)                       |
+| Review create handler    | [apps/api/src/handlers/reviews-create.ts](../apps/api/src/handlers/reviews-create.ts)         |
+| Review get handler       | [apps/api/src/handlers/reviews-get.ts](../apps/api/src/handlers/reviews-get.ts)               |
+| Auth enforcement         | [apps/api/src/lib/auth.ts](../apps/api/src/lib/auth.ts)                                       |
+| Bedrock wrapper          | [apps/api/src/lib/bedrock.ts](../apps/api/src/lib/bedrock.ts)                                 |
+| Agent registry           | [apps/api/src/lib/agents.ts](../apps/api/src/lib/agents.ts)                                   |
+| Safety screen            | [apps/api/src/lib/safety.ts](../apps/api/src/lib/safety.ts)                                   |
+| DynamoDB helpers         | [apps/api/src/lib/review-store.ts](../apps/api/src/lib/review-store.ts)                       |
+| Review worker Lambda     | [apps/api/src/handlers/review-worker.ts](../apps/api/src/handlers/review-worker.ts)           |
+| Synthesis Lambda         | [apps/api/src/handlers/review-synthesizer.ts](../apps/api/src/handlers/review-synthesizer.ts) |
+| Core Terraform           | [infra/terraform/main.tf](../infra/terraform/main.tf)                                         |
+| Bootstrap Terraform      | [infra/terraform/bootstrap/main.tf](../infra/terraform/bootstrap/main.tf)                     |
+| Main pipeline            | [azure-pipelines.yml](../azure-pipelines.yml)                                                 |
+| Architecture overview    | [docs/architecture.md](architecture.md)                                                       |
+| Hardening roadmap        | [docs/hardening-roadmap.md](hardening-roadmap.md)                                             |
+| Prompt authoring guide   | [docs/prompt-authoring.md](prompt-authoring.md)                                               |
+| Pipelines and identities | [docs/pipelines-and-identities.md](pipelines-and-identities.md)                               |
